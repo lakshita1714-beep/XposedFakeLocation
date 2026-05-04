@@ -2,30 +2,53 @@ name: Android Build
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      # 1. Checkout source code
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+      # 2. Set up JDK (required for Gradle Android builds)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
 
-    - name: Grant execute permission
-      run: chmod +x gradlew
+      # 3. Grant permission to Gradle wrapper
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
-    - name: Build APK
-      run: ./gradlew assembleDebug --no-daemon
+      # 4. Cache Gradle dependencies (faster builds)
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+      # 5. Clean build (optional but safer in CI)
+      - name: Clean project
+        run: ./gradlew clean
+
+      # 6. Build Debug APK
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # 7. Upload APK artifact
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
